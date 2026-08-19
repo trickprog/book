@@ -55,16 +55,16 @@ export async function getRating(
     );
     url.searchParams.set(
         'maxResults',
-        '20',
+        '10',
     );
     if (config.googleBookApiKey) url.searchParams.set('key', config.googleBookApiKey);
 
     try {
         const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
         if (!response.ok) return null;
+        console.log('Google Books API response:', response);
 
         const data = await response.json()
-        console.log('Google Books API response:', data);
         const result = pickRating(data, title, author)
 
         return result;

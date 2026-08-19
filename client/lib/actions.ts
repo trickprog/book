@@ -24,10 +24,7 @@ export interface SearchPatch {
   pageSize?: number;
 }
 
-/**
- * Stores the search state in cookies and reloads the grid, so the URL stays clean.
- * Anything left at its default is deleted rather than stored.
- */
+
 export async function updateSearch(patch: SearchPatch) {
   const store = await cookies();
 

@@ -22,7 +22,6 @@ export interface BookQuery {
   pageSize: number;
 }
 
-/** Every value comes from a cookie, so nothing about the search shows up in the URL. */
 export function parseBookQuery(raw: Partial<Record<keyof BookQuery, string>>): BookQuery {
   const sort = raw.sort ?? DEFAULT_SORT;
   const page = Number(raw.page);

@@ -34,7 +34,7 @@ function parsePageSize(value?: number): number {
 async function mergeRating(data: Book) {
     const { ...book } = data;
     const google = await googleBooks.getRating(book.title, book.authors[0]);
-    console.log('google', google);
+    console.log('google book service:', google);
     if (!google) {
         return book.ratingAverage !== undefined
             ? { ...book, ratingSource: 'open-library' }
@@ -80,5 +80,6 @@ export async function getBookById(id: string) {
         throw new ApiError(400, 'Book id must be an Open Library work id.');
     }
     const book = await openLibrary.getBookById(id.toUpperCase());
+    console.log('open library specific book service:', book);
     return mergeRating(book);
 }
