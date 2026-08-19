@@ -14,6 +14,8 @@ export interface Book {
     ratingAverage?: number;
     ratingCount?: number;
     ratingSource?: 'google-books' | 'open-library';
+    description?: string;
+    subjects?: string[];
     openLibraryUrl: string;
 }
 
@@ -27,6 +29,14 @@ export interface Doc {
     isbn?: string[];
     ratings_average?: number;
     ratings_count?: number;
+    description?: string;
+    subjects?: string[];
+
+}
+
+export interface BookDetailResponse {
+    description?: string | { value?: string };
+    subjects?: string[];
 }
 
 export interface SearchResponse {
@@ -54,3 +64,4 @@ export interface VolumesResponse {
         volumeInfo: VolumeInfo
     }[];
 }
+

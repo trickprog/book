@@ -1,10 +1,10 @@
-import { url } from 'inspector/promises';
 import { config } from '../config';
 import { ApiError } from '../lib/ErrorHandler';
 import {
     Book,
     Doc,
     SearchResponse,
+    BookDetailResponse,
     type SearchParams,
 } from './types';
 
@@ -22,16 +22,18 @@ const FIELDS = [
 const SORTS: Record<string, string> = {
     newest: 'new',
     oldest: 'old',
-    rating: 'rating',
+    rating: 'rating desc',
+    'rating-asc': 'rating asc',
 };
 
 
-function FormatResponseData(doc: Doc): Book | null {
+function FormatResponseData(doc: Doc, work?: BookDetailResponse): Book | null {
     if (!doc.key || !doc.title) return null;
     const id = doc.key.replace('/works/', '');
     const hasRating = typeof doc.ratings_average === 'number' && (doc.ratings_count ?? 0) > 0;
 
-    return {
+
+    const book: Book = {
         id,
         title: doc.title.trim(),
         authors: doc.author_name ?? [],
@@ -40,7 +42,16 @@ function FormatResponseData(doc: Doc): Book | null {
         ratingAverage: hasRating ? parseFloat((Math.round(doc.ratings_average! * 10) / 10).toFixed(2)) : undefined,
         ratingCount: hasRating ? doc.ratings_count : undefined,
         openLibraryUrl: `${config.openlibrarySearchUrl}/works/${id}`,
+    }
+
+    const description = typeof work?.description === 'string'
+        ? work.description
+        : work?.description?.value;
+    const bookDetails: Pick<Book, 'description' | 'subjects'> = {
+        description,
+        subjects: work?.subjects,
     };
+    return { ...book, ...bookDetails };
 }
 
 function searchUrl(q: string, page: number, limit: number, sort?: string): URL {
@@ -69,7 +80,7 @@ export async function searchBooks(params: SearchParams) {
     const docs = response.docs ?? [];
     const totalItems = response.numFound ?? docs.length;
     return {
-        books: docs.map(FormatResponseData).filter((book): book is Book => book !== null),
+        books: docs.map(doc => FormatResponseData(doc)).filter((book): book is Book => book !== null),
         page: params.page,
         pageSize: params.pageSize,
         totalItems,
@@ -78,15 +89,29 @@ export async function searchBooks(params: SearchParams) {
 }
 
 export async function getBookById(id: string) {
+    const headers = { Accept: 'application/json', 'User-Agent': 'BookApp/1.0' };
 
-    const response: SearchResponse = await fetch(searchUrl(`key:/works/${id}`, 1, 1), {
-        signal: AbortSignal.timeout(20000),
-        headers: { Accept: 'application/json', 'User-Agent': 'BookApp/1.0' },
-    }).then(res => res.json());
+    const [response, work] = await Promise.all([
+
+        fetch(searchUrl(`key:/works/${id}`, 1, 1), {
+            signal: AbortSignal.timeout(20000),
+            headers,
+        }).then((res): Promise<SearchResponse> => res.json()),
+
+        fetch(`${config.openlibrarySearchUrl}/works/${id}.json`, {
+            signal: AbortSignal.timeout(20000),
+            headers,
+        })
+            .then(async (res): Promise<BookDetailResponse> => (res.ok ? res.json() : {}))
+            .catch((): BookDetailResponse => ({})),
+    ]);
 
     const doc = response.docs?.[0];
-    const book = doc ? FormatResponseData(doc) : null;
+    const book = doc ? FormatResponseData(doc, work) : null;
 
     if (!book) throw new ApiError(404, `No book found for id "${id}".`);
-    return book;
+
+
+
+    return book
 }
