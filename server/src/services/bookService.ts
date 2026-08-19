@@ -4,12 +4,37 @@ import * as openLibrary from './openLibrary';
 import { SearchParams, type Book, } from './types';
 
 const DEFAULT_PAGE_SIZE = 10;
-const SORTS = ['new', 'old', 'rating asc', 'rating desc'];
+const MAX_PAGE_SIZE = 50;
+const SORTS = ['relevance', 'newest', 'oldest', 'rating', 'rating-asc'] as const;
+
+type Sort = (typeof SORTS)[number];
+
+function parseSort(value?: string): Sort {
+    if (!value) return 'relevance';
+    if (!SORTS.includes(value as Sort)) {
+        throw new ApiError(400, `Sort must be one of: ${SORTS.join(', ')}.`);
+    }
+    return value as Sort;
+}
+
+function parsePage(value?: number): number {
+    const page = Math.trunc(Number(value)) || 1;
+    if (page < 1) throw new ApiError(400, 'Page must be 1 or greater.');
+    return page;
+}
+
+function parsePageSize(value?: number): number {
+    const pageSize = Math.trunc(Number(value)) || DEFAULT_PAGE_SIZE;
+    if (pageSize < 1 || pageSize > MAX_PAGE_SIZE) {
+        throw new ApiError(400, `Page size must be between 1 and ${MAX_PAGE_SIZE}.`);
+    }
+    return pageSize;
+}
 
 async function mergeRating(data: Book) {
     const { ...book } = data;
     const google = await googleBooks.getRating(book.title, book.authors[0]);
-
+    console.log('google book service:', google);
     if (!google) {
         return book.ratingAverage !== undefined
             ? { ...book, ratingSource: 'open-library' }
@@ -29,25 +54,24 @@ export async function searchBooks(query: SearchParams) {
     if (!q) throw new ApiError(400, 'Query parameter not provided.');
     if (q.length > 200) throw new ApiError(400, 'Query cannot be too long (max 200 characters).');
 
-    const sort = query.sort ?? '';
+    const sort = parseSort(query.sort);
 
     const result = await openLibrary.searchBooks({
         query: q,
-        page: Number(query.page) || 1,
-        pageSize: Number(query.pageSize) || DEFAULT_PAGE_SIZE,
+        page: parsePage(query.page),
+        pageSize: parsePageSize(query.pageSize),
         sort,
     });
 
     const books = await Promise.all(result.books.map(mergeRating));
 
-    if (sort === 'rating asc') {
+    if (sort === 'rating') {
         books.sort((a, b) => (b.ratingAverage ?? -1) - (a.ratingAverage ?? -1));
-    } else if (sort === 'rating desc') {
-        books.sort((a, b) => (a.ratingAverage ?? -1) - (b.ratingAverage ?? -1));
+    } else if (sort === 'rating-asc') {
+        books.sort((a, b) => (a.ratingAverage ?? Infinity) - (b.ratingAverage ?? Infinity));
     }
 
-
-    return { ...result, books };
+    return { ...result, books, sort };
 }
 
 export async function getBookById(id: string) {
@@ -56,5 +80,6 @@ export async function getBookById(id: string) {
         throw new ApiError(400, 'Book id must be an Open Library work id.');
     }
     const book = await openLibrary.getBookById(id.toUpperCase());
+    console.log('open library specific book service:', book);
     return mergeRating(book);
 }

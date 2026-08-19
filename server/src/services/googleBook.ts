@@ -2,7 +2,6 @@ import Fuse from 'fuse.js';
 import { config } from '../config';
 import { GoogleRating, VolumeInfo, VolumesResponse } from './types';
 
-const MAX_TRIES = 10;
 
 function pickRating(data: VolumesResponse, title: string, author: string) {
     let best: GoogleRating | null = null;
@@ -50,31 +49,28 @@ export async function getRating(
         'fields',
         'items(volumeInfo(title,industryIdentifiers,averageRating,ratingsCount,authors))',
     );
-        url.searchParams.set(
+    url.searchParams.set(
         'printType',
         'books',
     );
-         url.searchParams.set(
+    url.searchParams.set(
         'maxResults',
-        '20',
+        '10',
     );
     if (config.googleBookApiKey) url.searchParams.set('key', config.googleBookApiKey);
 
-    for (let attempt = 1; attempt <= MAX_TRIES; attempt++) {
-        try {
-            const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
-            if (response.status === 503) continue;
-            if (!response.ok) return null;
+    try {
+        const response = await fetch(url, { signal: AbortSignal.timeout(8000) });
+        if (!response.ok) return null;
+        console.log('Google Books API response:', response);
 
-            const data = await response.json()
-            console.log('Google Books API response:', data);
-            const result = pickRating(data, title, author)
+        const data = await response.json()
+        const result = pickRating(data, title, author)
 
-            return result;
-        } catch {
-            return null;
-        }
+        return result;
+    } catch {
+        return null;
     }
 
-    return null;
+
 }
